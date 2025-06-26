@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaspa Price Analysis</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1d2e 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #d1d5db;
+        }
+        
+        select {
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            color: white;
+            outline: none;
+            transition: all 0.2s;
+        }
+        
+        select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px #3b82f6;
+        }
+        
+        .time-buttons {
+            display: flex;
+            gap: 0.25rem;
+        }
+        
+        .time-btn {
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #374151;
+            color: #d1d5db;
+        }
+        
+        .time-btn:hover {
+            background: #4b5563;
+        }
+        
+        .time-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .chart-container {
+            margin-bottom: 2rem;
+            background: rgba(30, 41, 59, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .chart-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            font-size: 0.875rem;
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.3);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .info-item {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .info-label {
+            color: #9ca3af;
+        }
+        
+        .info-value {
+            color: white;
+            font-weight: 600;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #9ca3af;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 2rem;
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 12px;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .control-group {
+                justify-content: center;
+            }
+            
+            .time-buttons {
+                justify-content: center;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Kaspa Price Analysis</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <div class="control-item">
+                    <label for="priceScale">Price Scale:</label>
+                    <select id="priceScale">
+                        <option value="Linear">Linear</option>
+                        <option value="Log" selected>Log</option>
+                    </select>
+                </div>
+                
+                <div class="control-item">
+                    <label for="timeScale">Time Scale:</label>
+                    <select id="timeScale">
+                        <option value="Linear" selected>Linear</option>
+                        <option value="Log">Log</option>
+                    </select>
+                </div>
+                
+                <div class="control-item">
+                    <label for="powerLaw">Power Law:</label>
+                    <select id="powerLaw">
+                        <option value="Hide">Hide</option>
+                        <option value="Show" selected>Show</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="time-buttons">
+                <button class="time-btn" data-period="1W">1W</button>
+                <button class="time-btn" data-period="1M">1M</button>
+                <button class="time-btn" data-period="3M">3M</button>
+                <button class="time-btn" data-period="6M">6M</button>
+                <button class="time-btn" data-period="1Y">1Y</button>
+                <button class="time-btn active" data-period="All">All</button>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div id="loading" class="loading">Loading Kaspa price data...</div>
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="priceChart" style="display: none;"></div>
+        </div>
+        
+        <div id="chartInfo" class="chart-info" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const GENESIS_DATE = new Date('2021-11-07T00:00:00.000Z').getTime();
+        const CHART_HEIGHT = 750;
+        
+        // State
+        let rawData = [];
+        let filteredData = [];
+        let currentState = {
+            priceScale: 'Log',
+            timeScale: 'Linear', 
+            powerLaw: 'Show',
+            timePeriod: 'All'
+        };
+        
+        // Utility functions
+        function getDaysFromGenesis(timestamp) {
+            return Math.max(1, Math.floor((timestamp - GENESIS_DATE) / (24 * 60 * 60 * 1000)) + 1);
+        }
+        
+        function formatCurrency(value) {
+            if (value >= 1) {
+                if (value >= 1000) return `$${(value/1000).toFixed(1)}k`;
+                else if (value >= 100) return `$${value.toFixed(0)}`;
+                else if (value >= 10) return `$${value.toFixed(1)}`;
+                else return `$${value.toFixed(2)}`;
+            } else if (value >= 0.01) {
+                return `$${value.toFixed(3)}`;
+            } else if (value >= 0.001) {
+                return `$${value.toFixed(4)}`;
+            } else if (value >= 0.0001) {
+                return `$${value.toFixed(5)}`;
+            } else {
+                return `$${value.toExponential(1)}`;
+            }
+        }
+        
+        function fitPowerLaw(data) {
+            const validData = data.filter(point => point.value > 0);
+            
+            if (validData.length < 2) {
+                throw new Error("Not enough valid data points for power law fitting");
+            }
+            
+            const logX = validData.map(point => {
+                const daysFromGenesis = getDaysFromGenesis(point.timestamp);
+                return Math.log(Math.max(1, daysFromGenesis));
+            });
+            const logY = validData.map(point => Math.log(point.value));
+            
+            const n = logX.length;
+            const sumX = logX.reduce((a, b) => a + b, 0);
+            const sumY = logY.reduce((a, b) => a + b, 0);
+            const sumXY = logX.reduce((sum, x, i) => sum + x * logY[i], 0);
+            const sumX2 = logX.reduce((sum, x) => sum + x * x, 0);
+            const sumY2 = logY.reduce((sum, y) => sum + y * y, 0);
+            
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+            
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+            const ssXY = sumXY - n * meanX * meanY;
+            const ssXX = sumX2 - n * meanX * meanX;
+            const ssYY = sumY2 - n * meanY * meanY;
+            const rValue = ssXY / Math.sqrt(ssXX * ssYY);
+            const r2 = rValue * rValue;
+            
+            const a = Math.exp(intercept);
+            const b = slope;
+            
+            return { a, b, r2 };
+        }
+        
+        function calculateATH(data) {
+            if (data.length === 0) return null;
+            
+            const athPoint = data.reduce((max, point) => 
+                point.value > max.value ? point : max
+            );
+            
+            return {
+                price: athPoint.value,
+                date: new Date(athPoint.timestamp),
+                timestamp: athPoint.timestamp,
+                daysFromGenesis: getDaysFromGenesis(athPoint.timestamp)
+            };
+        }
+        
+        function calculate1YL(data) {
+            if (data.length === 0) return null;
+            
+            const oneYearAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
+            const recentData = data.filter(point => point.timestamp >= oneYearAgo);
+            
+            if (recentData.length === 0) {
+                const minPoint = data.reduce((min, point) => 
+                    point.value < min.value ? point : min
+                );
+                return {
+                    price: minPoint.value,
+                    date: new Date(minPoint.timestamp),
+                    timestamp: minPoint.timestamp,
+                    daysFromGenesis: getDaysFromGenesis(minPoint.timestamp)
+                };
+            }
+            
+            const oylPoint = recentData.reduce((min, point) => 
+                point.value < min.value ? point : min
+            );
+            
+            return {
+                price: oylPoint.price,
+                date: new Date(oylPoint.timestamp),
+                timestamp: oylPoint.timestamp,
+                daysFromGenesis: getDaysFromGenesis(oylPoint.timestamp)
+            };
+        }
+        
+        function generateLogTicks(dataMin, dataMax) {
+            const logMin = Math.floor(Math.log10(dataMin));
+            const logMax = Math.ceil(Math.log10(dataMax));
+            
+            const majorTicks = [];
+            const intermediateTicks = [];
+            const minorTicks = [];
+            
+            for (let i = logMin; i <= logMax + 1; i++) {
+                const base = Math.pow(10, i);
+                
+                if (dataMin <= base && base <= dataMax) {
+                    majorTicks.push(base);
+                }
+                
+                for (const factor of [2, 5]) {
+                    const intermediateVal = factor * base;
+                    if (dataMin <= intermediateVal && intermediateVal <= dataMax) {
+                        intermediateTicks.push(intermediateVal);
+                    }
+                }
+                
+                for (const j of [3, 4, 6, 7, 8, 9]) {
+                    const minorVal = j * base;
+                    if (dataMin <= minorVal && minorVal <= dataMax) {
+                        minorTicks.push(minorVal);
+                    }
+                }
+            }
+            
+            return { majorTicks, intermediateTicks, minorTicks };
+        }
+        
+        function filterDataByTimePeriod(data, timePeriod) {
+            if (timePeriod === 'All' || data.length === 0) return data;
+            
+            const now = Date.now();
+            const days = {
+                '1W': 7, '1M': 30, '3M': 90, 
+                '6M': 180, '1Y': 365
+            };
+            
+            const cutoffTime = now - days[timePeriod] * 24 * 60 * 60 * 1000;
+            return data.filter(point => point.timestamp >= cutoffTime);
+        }
+        
+        function createChart() {
+            const { priceScale, timeScale, powerLaw, timePeriod } = currentState;
+            
+            if (filteredData.length === 0) return;
+            
+            const traces = [];
+            
+            // Determine X values based on time scale
+            let xValues;
+            if (timeScale === 'Log') {
+                xValues = filteredData.map(d => getDaysFromGenesis(d.timestamp));
+            } else {
+                xValues = filteredData.map(d => new Date(d.timestamp));
+            }
+            
+            const yValues = filteredData.map(d => d.value);
+            
+            // Calculate Y-axis range
+            const yMinData = Math.min(...yValues);
+            const yMaxData = Math.max(...yValues);
+            const athData = calculateATH(filteredData);
+            const athInView = athData !== null;
+            
+            let yMinChart, yMaxChart;
+            if (priceScale === 'Log') {
+                yMinChart = yMinData * 0.8;
+                yMaxChart = yMaxData * (athInView ? 1.50 : 1.05);
+            } else {
+                yMinChart = 0;
+                yMaxChart = yMaxData * (athInView ? 1.15 : 1.05);
+            }
+            
+            // For log scale: add invisible baseline
+            if (priceScale === 'Log') {
+                traces.push({
+                    x: xValues,
+                    y: Array(xValues.length).fill(yMinChart),
+                    mode: 'lines',
+                    type: 'scatter',
+                    name: 'baseline',
+                    line: { color: 'rgba(0,0,0,0)', width: 0 },
+                    showlegend: false,
+                    hoverinfo: 'skip',
+                });
+            }
+            
+            // Main price trace
+            traces.push({
+                x: xValues,
+                y: yValues,
+                mode: 'lines',
+                type: 'scatter',
+                name: 'Kaspa Price',
+                line: { 
+                    color: '#5B6CFF', 
+                    width: 2 
+                },
+                fill: priceScale === 'Log' ? 'tonexty' : 'tozeroy',
+                fillgradient: {
+                    type: "vertical",
+                    colorscale: [
+                        [0, "rgba(13, 13, 26, 0.01)"],
+                        [1, "rgba(91, 108, 255, 0.6)"]
+                    ]
+                },
+                connectgaps: true,
+                hovertemplate: timeScale === 'Linear' 
+                    ? '<b>%{fullData.name}</b><br>Price: $%{y:.4f}<extra></extra>'
+                    : '%{text}<br><b>%{fullData.name}</b><br>Price: $%{y:.4f}<extra></extra>',
+                text: filteredData.map(d => new Date(d.timestamp).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                })),
+            });
+            
+            // Add power law if enabled
+            let powerLawData = null;
+            if (powerLaw === 'Show' && rawData.length >= 10) {
+                try {
+                    powerLawData = fitPowerLaw(rawData);
+                    
+                    const allDaysFromGenesis = rawData.map(d => getDaysFromGenesis(d.timestamp));
+                    const yFit = allDaysFromGenesis.map(x => powerLawData.a * Math.pow(x, powerLawData.b));
+                    
+                    const filteredIndices = rawData.map((d, index) => ({...d, originalIndex: index}))
+                        .filter(d => filteredData.some(fd => fd.timestamp === d.timestamp))
+                        .map(d => d.originalIndex);
+                    
+                    const viewXFit = filteredIndices.map(i => allDaysFromGenesis[i]);
+                    const viewYFit = filteredIndices.map(i => yFit[i]);
+                    
+                    let fitX;
+                    if (timeScale === 'Log') {
+                        fitX = viewXFit;
+                    } else {
+                        fitX = filteredIndices.map(i => new Date(rawData[i].timestamp));
+                    }
+                    
+                    traces.push({
+                        x: fitX,
+                        y: viewYFit,
+                        mode: 'lines',
+                        type: 'scatter',
+                        name: 'Power Law',
+                        line: { 
+                            color: '#ff8c00', 
+                            width: 2,
+                            dash: 'solid'
+                        },
+                        connectgaps: true,
+                        showlegend: true,
+                        hovertemplate: '<b>%{fullData.name}</b><br>Fit: $%{y:.4f}<extra></extra>',
+                    });
+                } catch (error) {
+                    console.error('Power law calculation failed:', error);
+                }
+            }
+            
+            // Add ATH marker
+            if (athData) {
+                let athX;
+                if (timeScale === 'Log') {
+                    athX = athData.daysFromGenesis;
+                } else {
+                    athX = athData.date;
+                }
+                
+                traces.push({
+                    x: [athX],
+                    y: [athData.price],
+                    mode: 'markers+text',
+                    type: 'scatter',
+                    name: 'ATH',
+                    legendgroup: 'markers',
+                    marker: {
+                        color: '#ffffff',
+                        size: 12,
+                        line: { color: '#5B6CFF', width: 3 }
+                    },
+                    text: [`ATH ${formatCurrency(athData.price)}`],
+                    textposition: 'top left',
+                    textfont: { color: '#ffffff', size: 11 },
+                    showlegend: true,
+                    hovertemplate: `<b>All-Time High</b><br>Price: ${formatCurrency(athData.price)}<br>Date: ${athData.date.toLocaleDateString()}<extra></extra>`,
+                });
+            }
+            
+            // Add 1YL marker
+            const oylData = calculate1YL(filteredData);
+            if (oylData) {
+                let oylX;
+                if (timeScale === 'Log') {
+                    oylX = oylData.daysFromGenesis;
+                } else {
+                    oylX = oylData.date;
+                }
+                
+                traces.push({
+                    x: [oylX],
+                    y: [oylData.price],
+                    mode: 'markers+text',
+                    type: 'scatter',
+                    name: '1YL',
+                    legendgroup: 'markers',
+                    marker: {
+                        color: '#ffffff',
+                        size: 12,
+                        line: { color: '#ef4444', width: 3 }
+                    },
+                    text: [`1YL ${formatCurrency(oylData.price)}`],
+                    textposition: 'bottom left',
+                    textfont: { color: '#ffffff', size: 11 },
+                    showlegend: false,
+                    hovertemplate: `<b>One Year Low</b><br>Price: ${formatCurrency(oylData.price)}<br>Date: ${oylData.date.toLocaleDateString()}<extra></extra>`,
+                });
+            }
+            
+            // Create layout
+            const layout = {
+                height: CHART_HEIGHT,
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#9CA3AF', family: 'Inter' },
+                hovermode: 'x unified',
+                showlegend: true,
+                margin: { l: 50, r: 20, t: 20, b: 50 },
+                hoverlabel: {
+                    bgcolor: 'rgba(15, 20, 25, 0.95)',
+                    bordercolor: 'rgba(91, 108, 255, 0.5)',
+                    font: { color: '#e2e8f0', size: 11 },
+                    align: 'left',
+                    namelength: -1,
+                },
+                legend: {
+                    orientation: "h",
+                    yanchor: "bottom",
+                    y: 1.02,
+                    xanchor: "left",
+                    x: 0,
+                    bgcolor: 'rgba(0,0,0,0)',
+                    bordercolor: 'rgba(0,0,0,0)',
+                    borderwidth: 0,
+                    font: { size: 11 }
+                },
+                modebar: {
+                    orientation: "h",
+                    bgcolor: "rgba(0,0,0,0)",
+                    color: "#9CA3AF",
+                    activecolor: "#5B6CFF"
+                }
+            };
+            
+            // Configure X-axis
+            if (timeScale === 'Log') {
+                const daysFromGenesisValues = filteredData.map(d => getDaysFromGenesis(d.timestamp));
+                const minDays = Math.min(...daysFromGenesisValues);
+                const maxDays = Math.max(...daysFromGenesisValues);
+                
+                layout.xaxis = {
+                    title: { text: 'Days Since Genesis (Log Scale)' },
+                    type: 'log',
+                    showgrid: true,
+                    gridwidth: 1,
+                    gridcolor: 'rgba(255, 255, 255, 0.1)',
+                    linecolor: '#3A3C4A',
+                    zerolinecolor: '#3A3C4A',
+                    color: '#9CA3AF',
+                    range: [Math.log10(Math.max(1, minDays)), Math.log10(maxDays)],
+                    autorange: false,
+                    minor: {
+                        ticklen: 6,
+                        gridcolor: 'rgba(255, 255, 255, 0.05)',
+                        gridwidth: 0.5
+                    }
+                };
+            } else {
+                const dates = filteredData.map(d => new Date(d.timestamp));
+                const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+                
+                layout.xaxis = {
+                    title: { text: 'Date' },
+                    type: 'date',
+                    showgrid: true,
+                    gridwidth: 1,
+                    gridcolor: '#363650',
+                    linecolor: '#3A3C4A',
+                    zerolinecolor: '#3A3C4A',
+                    color: '#9CA3AF',
+                    tickformat: '%b %Y',
+                    hoverformat: '%B %d, %Y',
+                    range: [minDate.toISOString(), maxDate.toISOString()],
+                    autorange: false
+                };
+            }
+            
+            // Configure Y-axis
+            layout.yaxis = {
+                title: { text: 'Price (USD)' },
+                type: priceScale === 'Log' ? 'log' : 'linear',
+                gridcolor: '#363650',
+                gridwidth: 1,
+                color: '#9CA3AF',
+                range: priceScale === 'Log' 
+                    ? [Math.log10(yMinChart), Math.log10(yMaxChart)]
+                    : [yMinChart, yMaxChart]
+            };
+            
+            // Add log-specific Y-axis configuration
+            if (priceScale === 'Log') {
+                const { majorTicks, intermediateTicks, minorTicks } = generateLogTicks(yMinChart, yMaxChart);
+                const yTickVals = [...majorTicks, ...intermediateTicks].sort((a, b) => a - b);
+                const yTickText = yTickVals.map(val => formatCurrency(val));
+                
+                layout.yaxis.tickmode = 'array';
+                layout.yaxis.tickvals = yTickVals;
+                layout.yaxis.ticktext = yTickText;
+                layout.yaxis.minor = {
+                    showgrid: true,
+                    gridwidth: 0.5,
+                    gridcolor: 'rgba(54, 54, 80, 0.3)',
+                    tickmode: 'array',
+                    tickvals: minorTicks
+                };
+            }
+            
+            // Create the plot
+            Plotly.newPlot('priceChart', traces, layout, {
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                responsive: true,
+                doubleClick: 'autosize',
+                scrollZoom: true
+            });
+            
+            // Update chart info
+            updateChartInfo(powerLawData);
+        }
+        
+        function updateChartInfo(powerLawData) {
+            const athData = calculateATH(filteredData);
+            const oylData = calculate1YL(filteredData);
+            
+            let infoHtml = `
+                <div class="info-item">
+                    <span class="info-label">Data Points:</span>
+                    <span class="info-value">${filteredData.length.toLocaleString()}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Time Range:</span>
+                    <span class="info-value">${currentState.timePeriod}</span>
+                </div>
+            `;
+            
+            if (powerLawData) {
+                infoHtml += `
+                    <div class="info-item">
+                        <span class="info-label">Power Law R²:</span>
+                        <span class="info-value">${powerLawData.r2.toFixed(4)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Power Law Slope:</span>
+                        <span class="info-value">${powerLawData.b.toFixed(4)}</span>
+                    </div>
+                `;
+            }
+            
+            if (athData) {
+                infoHtml += `
+                    <div class="info-item">
+                        <span class="info-label" style="color: #60a5fa;">All-Time High:</span>
+                        <span class="info-value">${formatCurrency(athData.price)} (${athData.date.toLocaleDateString()})</span>
+                    </div>
+                `;
+            }
+            
+            if (oylData) {
+                infoHtml += `
+                    <div class="info-item">
+                        <span class="info-label" style="color: #f87171;">One Year Low:</span>
+                        <span class="info-value">${formatCurrency(oylData.price)} (${oylData.date.toLocaleDateString()})</span>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('chartInfo').innerHTML = infoHtml;
+            document.getElementById('chartInfo').style.display = 'flex';
+        }
+        
+        function loadData() {
+            // For GitHub Pages, we'll use a CSV file or direct data
+            // Since we can't access Google Sheets directly, you'll need to export your data
+            // For now, let's create some sample data that matches your structure
+            
+            // You would replace this with actual data loading
+            // Option 1: Load from a CSV file you upload to your repo
+            // Option 2: Embed the data directly in the HTML
+            // Option 3: Use a different API endpoint
+            
+            // Sample data for demonstration - replace with your actual data
+            generateSampleData();
+        }
+        
+        function generateSampleData() {
+            // This generates sample data - replace with your actual data loading
+            const startDate = GENESIS_DATE;
+            const endDate = Date.now();
+            const days = Math.floor((endDate - startDate) / (24 * 60 * 60 * 1000));
+            
+            rawData = [];
+            
+            // Generate realistic price data
+            let price = 0.001; // Starting price
+            
+            for (let i = 0; i < days; i += 1) {
+                const timestamp = startDate + (i * 24 * 60 * 60 * 1000);
+                const daysFromGenesis = getDaysFromGenesis(timestamp);
+                
+                // Power law with noise
+                const powerLawPrice = 0.0001 * Math.pow(daysFromGenesis, 1.8);
+                const noise = 1 + (Math.random() - 0.5) * 0.3; // ±15% noise
+                price = power
