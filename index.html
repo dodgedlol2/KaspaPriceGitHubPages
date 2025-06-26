@@ -203,6 +203,11 @@
                         <option value="Show" selected>Show</option>
                     </select>
                 </div>
+                
+                <div class="control-item">
+                    <button id="debugBtn" class="time-btn" style="background: #dc2626;">Debug Info</button>
+                    <button id="sampleDataBtn" class="time-btn" style="background: #059669;">Use Sample Data</button>
+                </div>
             </div>
             
             <div class="time-buttons">
@@ -218,6 +223,7 @@
         <div class="chart-container">
             <div id="loading" class="loading">Loading Kaspa price data...</div>
             <div id="error" class="error" style="display: none;"></div>
+            <div id="debugInfo" class="error" style="display: none; background: rgba(59, 130, 246, 0.1); color: #60a5fa; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 12px;"></div>
             <div id="priceChart" style="display: none;"></div>
         </div>
         
